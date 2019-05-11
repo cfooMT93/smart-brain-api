@@ -66,10 +66,10 @@ app.post('/signin', (req, res) => {
     // in order for the code to check with the email object, we must parse it using bodyParser (and using body-parser you need app.use())
     if (req.body.email === database.users[0].email &&
             req.body.password === database.users[0].password) {
-                res.json('success');
-            } else {
-                res.status(400).json('error logging in');
-            }
+            res.json(database.users[0]);
+    } else {
+        res.status(400).json('error logging in');
+    }
 })
 
 // REGISTER
@@ -106,7 +106,7 @@ app.get('/profile/:id', (req, res) => {
 })
 
 // IMAGE COUNT
-app.post('/image', (req, res) => {
+app.put('/image', (req, res) => {
     const { id } = req.body;
     let found = false;
     database.users.forEach(user => {
