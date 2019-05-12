@@ -150,27 +150,36 @@ app.get('/profile/:id', (req, res) => {
             }
         })
         .catch(err => res.status(400).json('error getting user'))
-        // if (!found) {
-        //     res.status(400).json('not found');
-        // }
 })
 
 // IMAGE COUNT
+// Old Image Count Code 
+// app.put('/image', (req, res) => {
+//     const { id } = req.body;
+//     let found = false;
+//     database.users.forEach(user => {
+//         if (user.id === id) {
+//             found = true;
+//             user.entries++
+//             return res.json(user.entries);
+//         } 
+//     })
+//     if (!found) {
+//         res.status(400).json('not found');
+//     }    
+// })
+//
+// New Image Count Code using PSQL & knex
 app.put('/image', (req, res) => {
     const { id } = req.body;
-    let found = false;
-    database.users.forEach(user => {
-        if (user.id === id) {
-            found = true;
-            user.entries++
-            return res.json(user.entries);
-        } 
+    db('users').where('id', '=', id)
+    .increment('entries', 1)
+    .returning('entries')
+    .then(entries => {
+        res.json(entries[0]);
     })
-    if (!found) {
-        res.status(400).json('not found');
-    }    
+    .catch(err => res.status(400).json('unable to get entries'))
 })
-
 // // BCRYPT-NODEJS
 // bcrypt.hash("bacon", null, null, function(err, hash) {
 //     // Store hash in your password DB.
