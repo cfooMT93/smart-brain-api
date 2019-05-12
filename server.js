@@ -10,6 +10,21 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const bcrypt = require('bcrypt-nodejs');
 const cors = require('cors');
+const knex = require('knex');
+
+const db = knex({
+	client: 'pg',
+	connection: {
+		host : '127.0.0.1',
+		user : 'postgres',
+		password : '1337',
+		database : 'smart-brain'
+	}
+});
+
+db.select('*').from('users').then(data => {
+    console.log(data);
+});
 
 const app = express();
 
@@ -73,21 +88,38 @@ app.post('/signin', (req, res) => {
 })
 
 // REGISTER
+// Old Register code - commenting this out to write new register code that will involve the use of PSQL database & KNEX.js
+// app.post('/register', (req, res) => {
+//     const { email, name, password } = req.body;
+//     // Secure Password when user registers - using bcrypt-nodejs
+//     // bcrypt.hash(password, null, null, function(err, hash) {
+//     //     console.log(hash);
+//     // });
+//     database.users.push({
+//         id: '125',
+//         name: name,
+//         email: email,
+//         entries: 0,
+//         joined: new Date()
+//     })
+//     // grabs the last user in the array; if there are 3 users (newly made one included) then the last user will be [2] therefore he does users.length -1
+//     res.json(database.users[database.users.length-1]);
+// })
+//
+// New Register Code - Uses PSQL Database & Knex.js
 app.post('/register', (req, res) => {
     const { email, name, password } = req.body;
-    // Secure Password when user registers - using bcrypt-nodejs
-    // bcrypt.hash(password, null, null, function(err, hash) {
-    //     console.log(hash);
-    // });
-    database.users.push({
-        id: '125',
-        name: name,
-        email: email,
-        entries: 0,
-        joined: new Date()
-    })
-    // grabs the last user in the array; if there are 3 users (newly made one included) then the last user will be [2] therefore he does users.length -1
-    res.json(database.users[database.users.length-1]);
+    db('users')
+        .returning('*')
+        .insert({
+            email: email,
+            name: name,
+            joined: new Date()
+        })
+        .then(user => {
+            res.json(user[0]);
+        })
+        .catch(err => res.status(400).json('unable to register'))
 })
 
 // PROFILE :id
