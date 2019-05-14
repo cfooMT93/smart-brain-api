@@ -12,6 +12,11 @@ const bcrypt = require('bcrypt-nodejs');
 const cors = require('cors');
 const knex = require('knex');
 
+const register = require('./controllers/register');
+const signin = require('./controllers/signin');
+const profile = require('./controllers/profile');
+const image = require('./controllers/image');
+
 const db = knex({
 	client: 'pg',
 	connection: {
@@ -60,11 +65,13 @@ app.use(cors());
 //     ]
 // }
 
+// --------------------------------------------
 // ROOT route
 app.get('/', (req, res) => {
     res.send(database.users);
 });
 
+// --------------------------------------------
 // SIGNIN
 // test by going to postman: use 'POST' and localhost:3000/signin just like the directory used in here
 // Old Signin Code w/o psql
@@ -90,27 +97,9 @@ app.get('/', (req, res) => {
 // })
 //
 // New SignIn Code using PSQL & KNEX
-app.post('/signin', (req, res) => {
-    db.select('email', 'hash').from('login')
-        .where('email', '=', req.body.email)
-        .then(data => {
-            const isValid = bcrypt.compareSync(req.body.password, data[0].hash);
-            // console.log(isValid);
-            if (isValid) {
-                return db.select('*').from('users')
-                    .where('email', '=', req.body.email)
-                    .then(user => {
-                        // console.log(user);
-                        res.json(user[0])
-                    })
-                    .catch(err => res.status(400).json('unable to get user'))
-            } else {
-                res.status(400).json('wrong credentials')
-            }
-        })
-        .catch(err => res.status(400).json('wrong credentials'))
-})
+app.post('/signin', signin.handleSignin(db, bcrypt))
 
+// --------------------------------------------
 // REGISTER
 // Old Register code - commenting this out to write new register code that will involve the use of PSQL database & KNEX.js
 // app.post('/register', (req, res) => {
@@ -131,34 +120,45 @@ app.post('/signin', (req, res) => {
 // })
 //
 // New Register Code - Uses PSQL Database & Knex.js
-app.post('/register', (req, res) => {
-    const { email, name, password } = req.body;
-    const hash = bcrypt.hashSync(password);
-        db.transaction(trx => {
-            trx.insert({
-                hash: hash,
-                email: email
-            })
-            .into('login')
-            .returning('email')
-            .then(loginEmail => {
-                return trx('users')
-                    .returning('*')
-                    .insert({
-                        email: loginEmail[0],
-                        name: name,
-                        joined: new Date()
-                    })
-                    .then(user => {
-                        res.json(user[0]);
-                    })
-            })
-            .then(trx.commit)
-            .catch(trx.rollback)
-        })
-        .catch(err => res.status(400).json('unable to register'))
-})
+// app.post('/register', (req, res) => {
+//     const { email, name, password } = req.body;
+//     const hash = bcrypt.hashSync(password);
+//         db.transaction(trx => {
+//             trx.insert({
+//                 hash: hash,
+//                 email: email
+//             })
+//             .into('login')
+//             .returning('email')
+//             .then(loginEmail => {
+//                 return trx('users')
+//                     .returning('*')
+//                     .insert({
+//                         email: loginEmail[0],
+//                         name: name,
+//                         joined: new Date()
+//                     })
+//                     .then(user => {
+//                         res.json(user[0]);
+//                     })
+//             })
+//             .then(trx.commit)
+//             .catch(trx.rollback)
+//         })
+//         .catch(err => res.status(400).json('unable to register'))
+// })
 
+// Cleaned REGISTER Code - Moved Entire Function to ./controllers/register.js - 
+// Now that our function has its own file, it can only read the database if we pass them through from here.
+// i.e. we're currently injecting dependencies { (req, res, db, bcrypt) } into the handleRegister
+// Using this method also requires to do a 'const register = require('./controllers/register');
+// Now do this for the signin, profile, image without commenting their code (you only need register commented out as an example)
+// app.post('/register', (req, res) => { register.handleRegister(req, res, db, bcrypt) })
+// (req, res) can be removed from the beginning point and within the injector for cleaner code, but this also requires that you add it as a function within register.js file as well 
+// see register.js for the example on the additional function
+app.post('/register', register.handleRegister(db, bcrypt))
+
+// --------------------------------------------
 // PROFILE :id
 // Old Profile:id code - commenting this out to write new profile code that will involve the use of PSQL database & KNEX.js
 // app.get('/profile/:id', (req, res) => {
@@ -176,19 +176,9 @@ app.post('/register', (req, res) => {
 // })
 //
 // New Profile Code - Uses PSQL Database & Knex.js
-app.get('/profile/:id', (req, res) => {
-    const { id } = req.params;
-    db.select('*').from('users').where({id})
-        .then(user => {
-            if (user.length) {
-                res.json(user[0])
-            } else {
-                res.status(400).json('Not found')
-            }
-        })
-        .catch(err => res.status(400).json('error getting user'))
-})
+app.get('/profile/:id', profile.handleProfileGet(db))
 
+// --------------------------------------------
 // IMAGE COUNT
 // Old Image Count Code 
 // app.put('/image', (req, res) => {
@@ -205,31 +195,14 @@ app.get('/profile/:id', (req, res) => {
 //         res.status(400).json('not found');
 //     }    
 // })
-//
+
 // New Image Count Code using PSQL & knex
-app.put('/image', (req, res) => {
-    const { id } = req.body;
-    db('users').where('id', '=', id)
-    .increment('entries', 1)
-    .returning('entries')
-    .then(entries => {
-        res.json(entries[0]);
-    })
-    .catch(err => res.status(400).json('unable to get entries'))
-})
-// // BCRYPT-NODEJS
-// bcrypt.hash("bacon", null, null, function(err, hash) {
-//     // Store hash in your password DB.
-// });
+app.put('/image', image.handleImage(db))
 
-// // Load hash from your password DB.
-// bcrypt.compare("bacon", hash, function(err, res) {
-//     // res == true
-// });
-// bcrypt.compare("veggies", hash, function(err, res) {
-//     // res = false
-// });
+// New Image endpoint for api call that's a .post
+app.post('/imageurl', image.handleApiCall())
 
+// --------------------------------------------
 app.listen(3000, () => {
     console.log('app is running on port 3000')
 }); 
